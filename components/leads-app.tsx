@@ -171,7 +171,18 @@ export function LeadsApp({
       <div
         className={`space-y-3 transition-opacity ${isPending ? "opacity-50" : ""}`}
       >
-        {visibleLeads.length === 0 && (
+        {isPending && leads.length === 0 && (
+          <div className="space-y-3">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-[72px] animate-pulse rounded-xl border border-slate-200 bg-slate-100"
+              />
+            ))}
+          </div>
+        )}
+
+        {!isPending && visibleLeads.length === 0 && (
           <div className="rounded-xl border border-dashed border-slate-300 py-16 text-center">
             <p className="text-sm text-slate-500">
               {leads.length === 0
