@@ -1,21 +1,25 @@
-export default function Home() {
+import { createClient } from "@/lib/supabase/server";
+import { getVisitorIdReadOnly } from "@/lib/visitor";
+import { getEntitlement } from "@/lib/leads/entitlement";
+import { LeadsApp } from "@/components/leads-app";
+import type { Lead } from "@/lib/types";
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const supabase = await createClient();
+  const visitorId = await getVisitorIdReadOnly();
+
+  const [{ data: leads, error }, entitlement] = await Promise.all([
+    supabase.from("leads").select("*").order("created_at", { ascending: false }),
+    getEntitlement(supabase, visitorId),
+  ]);
+
   return (
-    <main className="min-h-screen flex items-center justify-center p-8">
-      <div className="max-w-xl text-center space-y-4">
-        <h1 className="text-4xl font-bold tracking-tight">vibe-stack-supabase</h1>
-        <p className="text-neutral-500">
-          Edit{" "}
-          <code className="bg-neutral-100 px-1.5 py-0.5 rounded text-sm">
-            app/page.tsx
-          </code>{" "}
-          to start building.
-        </p>
-        <p className="text-xs text-neutral-400">
-          See{" "}
-          <code className="bg-neutral-100 px-1.5 py-0.5 rounded">CLAUDE.md</code>{" "}
-          for project conventions and gstack workflow.
-        </p>
-      </div>
-    </main>
+    <LeadsApp
+      initialLeads={(leads as Lead[]) ?? []}
+      loadError={error?.message ?? null}
+      entitlement={entitlement}
+    />
   );
 }
