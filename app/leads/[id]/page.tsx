@@ -12,6 +12,9 @@ export default async function LeadDetailPage({
 }) {
   const { id } = await params;
   const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   const { data: lead } = await supabase
     .from("leads")
     .select("*")
@@ -35,5 +38,5 @@ export default async function LeadDetailPage({
     );
   }
 
-  return <LeadDetail lead={lead as Lead} />;
+  return <LeadDetail lead={lead as Lead} isOwner={user?.id === lead.user_id} />;
 }

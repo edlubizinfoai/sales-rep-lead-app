@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { stripe, constructWebhookEvent } from "@/lib/stripe";
-import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { logAudit } from "@/lib/audit";
 import type Stripe from "stripe";
 
@@ -8,6 +8,10 @@ import type Stripe from "stripe";
  * Register in Stripe dashboard → Webhooks → add endpoint → /api/stripe-webhook
  * Required events: checkout.session.completed, customer.subscription.updated,
  * customer.subscription.deleted
+ *
+ * Uses the service_role client, not the cookie-based one — a webhook call has
+ * no logged-in user session for RLS to check against, only a verified Stripe
+ * signature, so it must bypass RLS deliberately here.
  */
 export async function POST(request: Request) {
   const payload = await request.text();
@@ -25,14 +29,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   try {
     switch (event.type) {
       case "checkout.session.completed": {
         const session = event.data.object as Stripe.Checkout.Session;
-        const visitorId = session.client_reference_id ?? session.metadata?.visitorId;
-        if (!visitorId) break;
+        const userId = session.client_reference_id ?? session.metadata?.userId;
+        if (!userId) break;
 
         let currentPeriodEnd: string | null = null;
         if (session.subscription) {
@@ -45,7 +49,7 @@ export async function POST(request: Request) {
         const { data: subRow } = await supabase
           .from("subscriptions")
           .insert({
-            user_id: visitorId,
+            user_id: userId,
             stripe_customer_id: session.customer as string,
             stripe_subscription_id: session.subscription as string,
             stripe_checkout_session_id: session.id,
@@ -57,7 +61,7 @@ export async function POST(request: Request) {
           .single();
 
         await logAudit(supabase, {
-          user_id: visitorId,
+          user_id: userId,
           table_name: "subscriptions",
           record_id: subRow?.id ?? null,
           action: "payment_received",

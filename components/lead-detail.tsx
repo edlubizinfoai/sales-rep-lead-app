@@ -22,7 +22,7 @@ function toPayload(values: LeadFormValues) {
   };
 }
 
-export function LeadDetail({ lead }: { lead: Lead }) {
+export function LeadDetail({ lead, isOwner }: { lead: Lead; isOwner: boolean }) {
   const router = useRouter();
   const [current, setCurrent] = useState(lead);
   const [editing, setEditing] = useState(false);
@@ -125,20 +125,26 @@ export function LeadDetail({ lead }: { lead: Lead }) {
           </dd>
         </div>
 
-        <div className="mt-8 flex justify-end gap-3 border-t border-slate-100 pt-6">
-          <button
-            onClick={() => setConfirmingDelete(true)}
-            className="rounded-md px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
-          >
-            Delete
-          </button>
-          <button
-            onClick={() => setEditing(true)}
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
-          >
-            Edit
-          </button>
-        </div>
+        {isOwner ? (
+          <div className="mt-8 flex justify-end gap-3 border-t border-slate-100 pt-6">
+            <button
+              onClick={() => setConfirmingDelete(true)}
+              className="rounded-md px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50"
+            >
+              Delete
+            </button>
+            <button
+              onClick={() => setEditing(true)}
+              className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
+            >
+              Edit
+            </button>
+          </div>
+        ) : (
+          <p className="mt-8 border-t border-slate-100 pt-6 text-sm text-slate-400">
+            This is a shared demo lead — read-only.
+          </p>
+        )}
       </div>
 
       {editing && (

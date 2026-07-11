@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { stripe } from "@/lib/stripe";
 import { createClient } from "@/lib/supabase/server";
-import { getVisitorId } from "@/lib/visitor";
 import { logAudit } from "@/lib/audit";
 
 export async function POST(request: Request) {
@@ -13,23 +12,33 @@ export async function POST(request: Request) {
   }
 
   try {
-    const visitorId = await getVisitorId();
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "unauthenticated", message: "Log in to upgrade." },
+        { status: 401 },
+      );
+    }
+
     const origin =
       request.headers.get("origin") ?? process.env.NEXT_PUBLIC_APP_URL ?? "";
 
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: process.env.STRIPE_PRICE_ID, quantity: 1 }],
-      client_reference_id: visitorId,
-      metadata: { visitorId },
-      subscription_data: { metadata: { visitorId } },
+      client_reference_id: user.id,
+      metadata: { userId: user.id },
+      subscription_data: { metadata: { userId: user.id } },
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${origin}/upgrade?checkout=canceled`,
     });
 
-    const supabase = await createClient();
     await logAudit(supabase, {
-      user_id: visitorId,
+      user_id: user.id,
       table_name: "subscriptions",
       record_id: null,
       action: "checkout_started",

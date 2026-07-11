@@ -5,9 +5,9 @@ export const FREE_LEAD_LIMIT = 3;
 
 export async function getEntitlement(
   supabase: SupabaseClient,
-  visitorId: string | null,
+  userId: string | null,
 ): Promise<Entitlement> {
-  if (!visitorId) {
+  if (!userId) {
     return { isPro: false, ownLeadCount: 0, remaining: FREE_LEAD_LIMIT, limit: FREE_LEAD_LIMIT };
   }
 
@@ -15,11 +15,11 @@ export async function getEntitlement(
     supabase
       .from("leads")
       .select("id", { count: "exact", head: true })
-      .eq("user_id", visitorId),
+      .eq("user_id", userId),
     supabase
       .from("subscriptions")
       .select("status")
-      .eq("user_id", visitorId)
+      .eq("user_id", userId)
       .eq("status", "active")
       .maybeSingle(),
   ]);

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const FEATURES = [
   "Unlimited leads",
@@ -10,6 +11,7 @@ const FEATURES = [
 ];
 
 export default function UpgradePage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,6 +20,10 @@ export default function UpgradePage() {
     setError(null);
     try {
       const res = await fetch("/api/checkout", { method: "POST" });
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(body.error ?? "Checkout is not available yet.");

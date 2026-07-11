@@ -35,10 +35,12 @@ export function LeadsApp({
   initialLeads,
   loadError,
   entitlement,
+  userId,
 }: {
   initialLeads: Lead[];
   loadError: string | null;
   entitlement: Entitlement;
+  userId: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -73,6 +75,10 @@ export function LeadsApp({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(toPayload(values)),
     });
+    if (res.status === 401) {
+      router.push("/login");
+      return;
+    }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       return { error: body.message ?? body.error ?? "Failed to add lead" };
@@ -89,6 +95,10 @@ export function LeadsApp({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(toPayload(values)),
     });
+    if (res.status === 401) {
+      router.push("/login");
+      return;
+    }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       return { error: body.message ?? body.error ?? "Failed to update lead" };
@@ -103,6 +113,10 @@ export function LeadsApp({
     setDeleting(true);
     const res = await fetch(`/api/leads/${deletingLead.id}`, { method: "DELETE" });
     setDeleting(false);
+    if (res.status === 401) {
+      router.push("/login");
+      return;
+    }
     if (!res.ok) {
       setToast({ message: "Failed to delete lead", kind: "error" });
       return;
@@ -110,6 +124,14 @@ export function LeadsApp({
     setToast({ message: `Deleted ${deletingLead.name}`, kind: "success" });
     setDeletingLead(null);
     refresh();
+  }
+
+  function handleAddClick() {
+    if (!userId) {
+      router.push("/login");
+      return;
+    }
+    setShowAdd(true);
   }
 
   return (
@@ -124,10 +146,10 @@ export function LeadsApp({
           </p>
         </div>
         <button
-          onClick={() => setShowAdd(true)}
+          onClick={handleAddClick}
           className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
         >
-          + Add Lead
+          {userId ? "+ Add Lead" : "Log in to add leads"}
         </button>
       </header>
 
@@ -191,60 +213,72 @@ export function LeadsApp({
             </p>
             {leads.length === 0 && (
               <button
-                onClick={() => setShowAdd(true)}
+                onClick={handleAddClick}
                 className="mt-4 rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700"
               >
-                + Add Lead
+                {userId ? "+ Add Lead" : "Log in to add leads"}
               </button>
             )}
           </div>
         )}
 
-        {visibleLeads.map((lead) => (
-          <div
-            key={lead.id}
-            className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <Link
-                  href={`/leads/${lead.id}`}
-                  className="truncate font-semibold text-slate-900 hover:underline"
-                >
-                  {lead.name}
-                </Link>
-                <StatusBadge status={lead.status} />
-                {isStale(lead.last_activity_at) && (
-                  <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700 ring-1 ring-inset ring-orange-600/20">
-                    Stale
-                  </span>
+        {visibleLeads.map((lead) => {
+          const isOwner = userId != null && lead.user_id === userId;
+          return (
+            <div
+              key={lead.id}
+              className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/leads/${lead.id}`}
+                    className="truncate font-semibold text-slate-900 hover:underline"
+                  >
+                    {lead.name}
+                  </Link>
+                  <StatusBadge status={lead.status} />
+                  {lead.user_id == null && (
+                    <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-500 ring-1 ring-inset ring-slate-500/20">
+                      Demo
+                    </span>
+                  )}
+                  {isStale(lead.last_activity_at) && (
+                    <span className="inline-flex items-center rounded-full bg-orange-100 px-2.5 py-0.5 text-xs font-medium text-orange-700 ring-1 ring-inset ring-orange-600/20">
+                      Stale
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 truncate text-sm text-slate-500">
+                  {lead.company || "—"}
+                  {lead.deal_value != null && (
+                    <> · ${Number(lead.deal_value).toLocaleString()}</>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <ScoreBadge score={lead.score} />
+                {isOwner && (
+                  <>
+                    <button
+                      onClick={() => setEditingLead(lead)}
+                      className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => setDeletingLead(lead)}
+                      className="rounded-md px-3 py-1.5 text-sm font-medium text-rose-600 hover:bg-rose-50"
+                    >
+                      Delete
+                    </button>
+                  </>
                 )}
               </div>
-              <p className="mt-0.5 truncate text-sm text-slate-500">
-                {lead.company || "—"}
-                {lead.deal_value != null && (
-                  <> · ${Number(lead.deal_value).toLocaleString()}</>
-                )}
-              </p>
             </div>
-
-            <div className="flex items-center gap-3">
-              <ScoreBadge score={lead.score} />
-              <button
-                onClick={() => setEditingLead(lead)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => setDeletingLead(lead)}
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-rose-600 hover:bg-rose-50"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {showAdd && (

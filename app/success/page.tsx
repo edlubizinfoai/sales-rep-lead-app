@@ -1,18 +1,19 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
-import { getVisitorIdReadOnly } from "@/lib/visitor";
 
 export const dynamic = "force-dynamic";
 
 export default async function SuccessPage() {
   const supabase = await createClient();
-  const visitorId = await getVisitorIdReadOnly();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const { data: sub } = visitorId
+  const { data: sub } = user
     ? await supabase
         .from("subscriptions")
         .select("status")
-        .eq("user_id", visitorId)
+        .eq("user_id", user.id)
         .eq("status", "active")
         .maybeSingle()
     : { data: null };

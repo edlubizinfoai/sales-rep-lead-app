@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getVisitorId } from "@/lib/visitor";
 import { computeScore } from "@/lib/leads/score";
 import { logAudit } from "@/lib/audit";
 
@@ -22,7 +21,17 @@ export async function PATCH(
   try {
     const { id } = await params;
     const supabase = await createClient();
-    const visitorId = await getVisitorId();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "unauthenticated", message: "Log in to edit leads." },
+        { status: 401 },
+      );
+    }
+
     const body = await request.json().catch(() => ({}));
 
     const { data: existing, error: fetchError } = await supabase
@@ -33,6 +42,12 @@ export async function PATCH(
 
     if (fetchError || !existing) {
       return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+    if (existing.user_id !== user.id) {
+      return NextResponse.json(
+        { error: "You don't have permission to edit this lead." },
+        { status: 403 },
+      );
     }
 
     const updates: Record<string, unknown> = {};
@@ -68,7 +83,7 @@ export async function PATCH(
     }
 
     await logAudit(supabase, {
-      user_id: visitorId,
+      user_id: user.id,
       table_name: "leads",
       record_id: id,
       action: "update",
@@ -92,7 +107,16 @@ export async function DELETE(
   try {
     const { id } = await params;
     const supabase = await createClient();
-    const visitorId = await getVisitorId();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "unauthenticated", message: "Log in to delete leads." },
+        { status: 401 },
+      );
+    }
 
     const { data: existing } = await supabase
       .from("leads")
@@ -100,13 +124,23 @@ export async function DELETE(
       .eq("id", id)
       .single();
 
+    if (!existing) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+    if (existing.user_id !== user.id) {
+      return NextResponse.json(
+        { error: "You don't have permission to delete this lead." },
+        { status: 403 },
+      );
+    }
+
     const { error } = await supabase.from("leads").delete().eq("id", id);
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
     await logAudit(supabase, {
-      user_id: visitorId,
+      user_id: user.id,
       table_name: "leads",
       record_id: id,
       action: "delete",

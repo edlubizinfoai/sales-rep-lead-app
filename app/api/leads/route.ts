@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { getVisitorId } from "@/lib/visitor";
 import { computeScore } from "@/lib/leads/score";
 import { getEntitlement } from "@/lib/leads/entitlement";
 import { logAudit } from "@/lib/audit";
@@ -29,9 +28,18 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
-    const visitorId = await getVisitorId();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-    const entitlement = await getEntitlement(supabase, visitorId);
+    if (!user) {
+      return NextResponse.json(
+        { error: "unauthenticated", message: "Log in to add leads." },
+        { status: 401 },
+      );
+    }
+
+    const entitlement = await getEntitlement(supabase, user.id);
     if (!entitlement.isPro && entitlement.ownLeadCount >= entitlement.limit) {
       return NextResponse.json(
         {
@@ -60,7 +68,7 @@ export async function POST(request: Request) {
     const { data, error } = await supabase
       .from("leads")
       .insert({
-        user_id: visitorId,
+        user_id: user.id,
         name,
         company: body.company || null,
         email: body.email || null,
@@ -82,7 +90,7 @@ export async function POST(request: Request) {
     }
 
     await logAudit(supabase, {
-      user_id: visitorId,
+      user_id: user.id,
       table_name: "leads",
       record_id: data.id,
       action: "insert",
