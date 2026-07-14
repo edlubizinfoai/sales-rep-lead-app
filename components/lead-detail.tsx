@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import type { Lead } from "@/lib/types";
+import type { Activity, Lead } from "@/lib/types";
 import { StatusBadge, isStale } from "@/components/status-badge";
 import { ScoreBadge } from "@/components/score-badge";
 import { LeadFormModal, type LeadFormValues } from "@/components/lead-form-modal";
 import { ConfirmModal } from "@/components/confirm-modal";
 import { Toast, type ToastState } from "@/components/toast";
+import { ActivityTimeline } from "@/components/activity-timeline";
+import { LogActivityModal } from "@/components/log-activity-modal";
 
 function toPayload(values: LeadFormValues) {
   return {
@@ -22,12 +24,21 @@ function toPayload(values: LeadFormValues) {
   };
 }
 
-export function LeadDetail({ lead, isOwner }: { lead: Lead; isOwner: boolean }) {
+export function LeadDetail({
+  lead,
+  activities,
+  isOwner,
+}: {
+  lead: Lead;
+  activities: Activity[];
+  isOwner: boolean;
+}) {
   const router = useRouter();
   const [current, setCurrent] = useState(lead);
   const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [loggingActivity, setLoggingActivity] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
 
   async function handleEditSubmit(values: LeadFormValues) {
@@ -55,6 +66,29 @@ export function LeadDetail({ lead, isOwner }: { lead: Lead; isOwner: boolean }) 
       return;
     }
     router.push("/");
+    router.refresh();
+  }
+
+  async function handleLogActivity(values: {
+    activity_type: Activity["activity_type"];
+    notes: string;
+  }) {
+    const res = await fetch("/api/activities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lead_id: current.id,
+        activity_type: values.activity_type,
+        notes: values.notes.trim() || null,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      return { error: body.message ?? body.error ?? "Failed to log activity" };
+    }
+    setCurrent(body.lead);
+    setLoggingActivity(false);
+    setToast({ message: "Activity logged", kind: "success" });
     router.refresh();
   }
 
@@ -147,6 +181,21 @@ export function LeadDetail({ lead, isOwner }: { lead: Lead; isOwner: boolean }) 
         )}
       </div>
 
+      <div className="mt-6 rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-slate-900">Activity</h2>
+          {isOwner && (
+            <button
+              onClick={() => setLoggingActivity(true)}
+              className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100"
+            >
+              + Log Activity
+            </button>
+          )}
+        </div>
+        <ActivityTimeline activities={activities} />
+      </div>
+
       {editing && (
         <LeadFormModal
           lead={current}
@@ -164,6 +213,13 @@ export function LeadDetail({ lead, isOwner }: { lead: Lead; isOwner: boolean }) 
           onCancel={() => setConfirmingDelete(false)}
           onConfirm={handleDelete}
           loading={deleting}
+        />
+      )}
+
+      {loggingActivity && (
+        <LogActivityModal
+          onClose={() => setLoggingActivity(false)}
+          onSubmit={handleLogActivity}
         />
       )}
 

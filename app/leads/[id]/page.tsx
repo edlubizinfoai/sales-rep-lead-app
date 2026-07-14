@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { LeadDetail } from "@/components/lead-detail";
-import type { Lead } from "@/lib/types";
+import type { Activity, Lead } from "@/lib/types";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -38,5 +38,21 @@ export default async function LeadDetailPage({
     );
   }
 
-  return <LeadDetail lead={lead as Lead} isOwner={user?.id === lead.user_id} />;
+  const isOwner = user?.id === lead.user_id;
+
+  const { data: activities } = isOwner
+    ? await supabase
+        .from("activities")
+        .select("*")
+        .eq("lead_id", id)
+        .order("occurred_at", { ascending: false })
+    : { data: [] };
+
+  return (
+    <LeadDetail
+      lead={lead as Lead}
+      activities={(activities as Activity[]) ?? []}
+      isOwner={isOwner}
+    />
+  );
 }
